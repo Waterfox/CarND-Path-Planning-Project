@@ -180,7 +180,7 @@ int main() {
   string map_file_ = "../data/highway_map.csv";
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
-  double disc_inc = 0.0;
+  double vel_out = 0.0;
   double acc = 0;
 
   ifstream in_map_(map_file_.c_str(), ifstream::in);
@@ -205,7 +205,7 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &disc_inc, &acc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &vel_out, &acc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -261,7 +261,8 @@ int main() {
             double pos_d;
 
             int path_size = previous_path_x.size(); // returned path size
-            int path_N = 40; // target path size
+            int path_N = 50; // target path size
+
             //load previous path into next path
             //This will be approximately N - 2 points (2 to 3 points get consumed per iteration)
             for(int i = 0; i < path_size; i++)
@@ -300,38 +301,60 @@ int main() {
             cout << "car_s: " << car_s << endl;
             cout << "car_d: " << car_d << endl;
 
-            //Use the current car position to find the next waypoint. Fit a spline to car position and next 4 waypoints in global xy
-            int next_wp = NextWaypoint(car_x,car_y,car_yaw,map_waypoints_x,map_waypoints_y);
-            int prev_wp = next_wp - 1;
-            cout << next_wp << endl;
-            if(next_wp == 0)
-            {
-              prev_wp  = map_waypoints_x.size()-1;
-            }
             int n_spl_pts = 5;
             std::vector<double> spl_ptsx;
             std::vector<double> spl_ptsy;
-            std::vector<double> spl_ptss;
-            // spl_ptsx.push_back(map_waypoints_x[prev_wp]);
-            // spl_ptsy.push_back(map_waypoints_y[prev_wp]);
-            // spl_ptss.push_back(map_waypoints_s[prev_wp]);
+            //std::vector<double> spl_ptss;
+
 
             //add the last enpoint from the previous path
-            spl_ptsx.push_back(pos_x2);
+            spl_ptsx.push_back(pos_x2); //PT1
             spl_ptsy.push_back(pos_y2);
-            spl_ptsx.push_back(pos_x);
+            spl_ptsx.push_back(pos_x);  // PT2
             spl_ptsy.push_back(pos_y);
             // spl_ptss.push_back(pos_s);
-            cout << "["<<map_waypoints_x[(next_wp+0) % map_waypoints_x.size()] <<", "<< map_waypoints_y[(next_wp+0) % map_waypoints_y.size()]<<"], ";
 
-            for (int i=2; i<n_spl_pts; i++){
-              spl_ptsx.push_back(map_waypoints_x[(next_wp+i) % map_waypoints_x.size()]);
-              spl_ptsy.push_back(map_waypoints_y[(next_wp+i) % map_waypoints_y.size()]);
-              // spl_ptss.push_back(map_waypoints_s[(next_wp+i) % map_waypoints_s.size()]);
-              cout << "["<<map_waypoints_x[(next_wp+i) % map_waypoints_x.size()] <<", "<< map_waypoints_y[(next_wp+i) % map_waypoints_y.size()]<<"], ";
-              // cout << map_waypoints_y[(next_wp+i) % map_waypoints_y.size()] <<", ";
-            }
+
+
+            //--generate waypoints along centerline based on map_waypoints--
+
+            // //Use the current car position to find the next waypoint. Fit a spline to car position and next 4 waypoints in global xy
+            // int next_wp = NextWaypoint(car_x,car_y,car_yaw,map_waypoints_x,map_waypoints_y);
+            // int prev_wp = next_wp - 1;
+            // cout << next_wp << endl;
+            // if(next_wp == 0)
+            // {
+            //   prev_wp  = map_waypoints_x.size()-1;
+            // }
+            //cout << "["<<map_waypoints_x[(next_wp+0) % map_waypoints_x.size()] <<", "<< map_waypoints_y[(next_wp+0) % map_waypoints_y.size()]<<"], ";
+            // spl_ptsx.push_back(map_waypoints_x[prev_wp]);
+            // spl_ptsy.push_back(map_waypoints_y[prev_wp]);
+            // for (int i=2; i<n_spl_pts; i++){
+            //   spl_ptsx.push_back(map_waypoints_x[(next_wp+i) % map_waypoints_x.size()]);
+            //   spl_ptsy.push_back(map_waypoints_y[(next_wp+i) % map_waypoints_y.size()]);
+            //   // spl_ptss.push_back(map_waypoints_s[(next_wp+i) % map_waypoints_s.size()]);
+            //   cout << "["<<map_waypoints_x[(next_wp+i) % map_waypoints_x.size()] <<", "<< map_waypoints_y[(next_wp+i) % map_waypoints_y.size()]<<"], ";
+            //   // cout << map_waypoints_y[(next_wp+i) % map_waypoints_y.size()] <<", ";
+            // }
             cout<<endl;
+
+            //--generate waypoints in front of the car based on getXY
+            int lane = 0;
+            //*********------------BEHAVIOR-----******
+            if (car_s > 200.0){lane = 1;}
+            if (car_s > 350){lane = 2;}
+            if (car_s > 500){lane = 1;}
+            if (car_s > 650){lane = 0;}
+
+            vector<double> wp0 = getXY(car_s+30,(2+4*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+            vector<double> wp1 = getXY(car_s+60,(2+4*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+            vector<double> wp2 = getXY(car_s+90,(2+4*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+            spl_ptsx.push_back(wp0[0]);
+            spl_ptsy.push_back(wp0[1]);
+            spl_ptsx.push_back(wp1[0]);
+            spl_ptsy.push_back(wp1[1]);
+            spl_ptsx.push_back(wp2[0]);
+            spl_ptsy.push_back(wp2[1]);
 
             //Transform to car coordinates
             std::vector<double> spl_ptsx_c(spl_ptsx.size());
@@ -344,11 +367,19 @@ int main() {
               cout << "["<<spl_ptsx_c[i] <<", "<<spl_ptsy_c[i]<<"], ";
               // cout << spl_ptsy_c[i] <<", ";
             }
+            spl_ptsx_c[0] = spl_ptsx_c[0]-0.001;
             cout<<endl;
 
 
             tk::spline spl1;
             spl1.set_points(spl_ptsx_c,spl_ptsy_c);
+
+            double target_x = 30.0; //WHY
+            double target_y = spl1(target_x);
+            double target_dist = sqrt(pow(target_x,2)+pow(target_y,2));
+            double x_add_on = 0;
+            // cout << "target_y: "<<target_y<<endl;
+            // cout << "target_dist: "<<target_dist<<endl;
 
 
             // int n_eval_pts = 100;
@@ -367,7 +398,7 @@ int main() {
             // }
 
 
-
+            //This would be setting the velocity for points in the future!
             // manage accelerations
             double target_velocity_mph = 47.0; //mph
             double target_velocity = target_velocity_mph * 0.44704; //m/s
@@ -375,20 +406,21 @@ int main() {
             double a_max = 10.0; //m/s^2
             double j_max = 100.0;
 
-            double car_speed_ms = car_speed * 044704; // m/s
+            double car_speed_ms = car_speed * 0.44704; // m/s
 
             //calculate acceleration based on max jerk
             if (target_velocity_mph > car_speed){
               //disc_inc = car_speed_ms* dt + 0.5*a_max*dt*dt;
               //accelerate
               if (acc < a_max){acc = acc + j_max*dt;}
-
+              vel_out += 0.2;
 
             }
             else if (target_velocity_mph < car_speed){
               //disc_inc = car_speed_ms* dt - 0.5*a_max*dt*dt;
               //deccelerate
               if (acc > -a_max) {acc = acc - j_max*dt;}
+              vel_out -= 0.2;
             }
             else {
               //zero accelleration
@@ -397,8 +429,8 @@ int main() {
               else {acc = acc;} //acc is zero
             }
 
-            disc_inc = disc_inc + 0.5*acc*dt*dt; // screw managing sign of jerk + 1.0/6.0*j_max*dt*dt*dt;
-
+            // vel_out = vel_out + acc*dt; // screw managing sign of jerk + 1.0/6.0*j_max*dt*dt*dt;
+            vel_out = 45.0*0.447;
             // // Just use acceleration
             // if (target_velocity_mph > car_speed){
             //   //disc_inc = car_speed_ms* dt + 0.5*a_max*dt*dt;
@@ -411,7 +443,8 @@ int main() {
             // else {
             //   disc_inc = disc_inc;
             // }
-            cout << disc_inc <<endl;
+            // cout << car_speed_ms <<endl;
+
 
 
 
@@ -419,20 +452,34 @@ int main() {
             //fill the remaining path up to 50
             for(int i = 0; i < path_N-path_size; i++)
             {
-              // calc next s,d
-              pos_s += disc_inc;
-              pos_d = 6;
 
-              // convert s,d to x,y
-              vector<double> pos_xy = getXY(pos_s, pos_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-              pos_x = pos_xy[0];
-              pos_y = pos_xy[1];
-              //cout << pos_s " << i << endl;
+              // cout << "target_dist: "<<target_dist<<endl;
+              double N = target_dist/(0.02*vel_out);
+              double x_point = x_add_on+(target_x/N);
+              double y_point = spl1(x_point);
+              x_add_on = x_point;
+              // cout << "N = " << N << endl;
+              // cout << "x_add_on = " << x_add_on << endl;
+              // cout << "x_point = " << x_point << endl;
+              // cout << "y_point = " << y_point << endl;
+              double x_ref = x_point;
+              double y_ref = y_point;
+              //rotate then shift back to global XY
+              x_point = (x_ref*cos(yaw_rad)-y_ref*sin(yaw_rad));
+              y_point = (x_ref*sin(yaw_rad)+y_ref*cos(yaw_rad));
+              x_point += pos_x;
+              y_point += pos_y;
+
+
               // add these to the next path
+              next_x_vals.push_back(x_point);
+              next_y_vals.push_back(y_point);
 
-              next_x_vals.push_back(pos_x);
-              next_y_vals.push_back(pos_y);
+
+
             }
+
+
 
             msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
