@@ -273,7 +273,7 @@ int main() {
 
             if(path_size < 2)
             {
-                pos_x = car_x;
+                pos_x = car_x; //last x position
                 pos_y = car_y;
                 angle = deg2rad(car_yaw);
                 pos_x2 = car_x - cos(angle);
@@ -341,14 +341,14 @@ int main() {
             //--generate waypoints in front of the car based on getXY
             int lane = 0;
             //*********------------BEHAVIOR-----******
-            if (car_s > 200.0){lane = 1;}
-            if (car_s > 350){lane = 2;}
-            if (car_s > 500){lane = 1;}
-            if (car_s > 650){lane = 0;}
+            if (car_s > 200.0){lane = 1.0;}
+            if (car_s > 350.0){lane = 2.0;}
+            if (car_s > 500.0){lane = 1.0;}
+            if (car_s > 650.0){lane = 0.0;}
 
-            vector<double> wp0 = getXY(car_s+30,(2+4*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
-            vector<double> wp1 = getXY(car_s+60,(2+4*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
-            vector<double> wp2 = getXY(car_s+90,(2+4*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+            vector<double> wp0 = getXY(car_s+45.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+            vector<double> wp1 = getXY(car_s+70.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+            vector<double> wp2 = getXY(car_s+95.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
             spl_ptsx.push_back(wp0[0]);
             spl_ptsy.push_back(wp0[1]);
             spl_ptsx.push_back(wp1[0]);
@@ -359,11 +359,12 @@ int main() {
             //Transform to car coordinates
             std::vector<double> spl_ptsx_c(spl_ptsx.size());
             std::vector<double> spl_ptsy_c(spl_ptsy.size());
-            double yaw_rad = deg2rad(angle);
+            // double yaw_rad = deg2rad(angle);
+            double yaw_rad = angle;
             // double prev_x = pos_x;
             for (int i=0; i<spl_ptsx.size();i++ ){
-              spl_ptsx_c[i] = (spl_ptsx[i] - pos_x) * cos(0-yaw_rad) - (spl_ptsy[i] - pos_y) * sin(0-yaw_rad);
-              spl_ptsy_c[i] = (spl_ptsx[i] - pos_x) * sin(0-yaw_rad) + (spl_ptsy[i] - pos_y) * cos(0-yaw_rad);
+              spl_ptsx_c[i] = (spl_ptsx[i] - pos_x) * cos(0.0-yaw_rad) - (spl_ptsy[i] - pos_y) * sin(0.0-yaw_rad);
+              spl_ptsy_c[i] = (spl_ptsx[i] - pos_x) * sin(0.0-yaw_rad) + (spl_ptsy[i] - pos_y) * cos(0.0-yaw_rad);
               cout << "["<<spl_ptsx_c[i] <<", "<<spl_ptsy_c[i]<<"], ";
               // cout << spl_ptsy_c[i] <<", ";
             }
@@ -377,7 +378,7 @@ int main() {
             double target_x = 30.0; //WHY
             double target_y = spl1(target_x);
             double target_dist = sqrt(pow(target_x,2)+pow(target_y,2));
-            double x_add_on = 0;
+            double x_add_on = 0.0;
             // cout << "target_y: "<<target_y<<endl;
             // cout << "target_dist: "<<target_dist<<endl;
 
@@ -458,10 +459,10 @@ int main() {
               double x_point = x_add_on+(target_x/N);
               double y_point = spl1(x_point);
               x_add_on = x_point;
-              // cout << "N = " << N << endl;
-              // cout << "x_add_on = " << x_add_on << endl;
-              // cout << "x_point = " << x_point << endl;
-              // cout << "y_point = " << y_point << endl;
+              cout << "N = " << N << endl;
+              cout << "x_add_on = " << x_add_on << endl;
+              cout << "x_point = " << x_point << endl;
+              cout << "y_point = " << y_point << endl;
               double x_ref = x_point;
               double y_ref = y_point;
               //rotate then shift back to global XY
