@@ -9,6 +9,7 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 #include "spline.h"
+#define MPH_TO_MS  0.44704;
 
 using namespace std;
 
@@ -181,6 +182,7 @@ int main() {
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
   double vel_out = 0.0;
+  double last_vel_out = 0.0;
   double acc = 0;
 
   ifstream in_map_(map_file_.c_str(), ifstream::in);
@@ -205,7 +207,7 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &vel_out, &acc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &vel_out, &last_vel_out, &acc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -301,23 +303,10 @@ int main() {
             cout << "car_s: " << car_s << endl;
             cout << "car_d: " << car_d << endl;
 
-            int n_spl_pts = 5;
-            std::vector<double> spl_ptsx;
-            std::vector<double> spl_ptsy;
-            //std::vector<double> spl_ptss;
-
-
-            //add the last enpoint from the previous path
-            spl_ptsx.push_back(pos_x2); //PT1
-            spl_ptsy.push_back(pos_y2);
-            spl_ptsx.push_back(pos_x);  // PT2
-            spl_ptsy.push_back(pos_y);
             // spl_ptss.push_back(pos_s);
 
 
-
             //--generate waypoints along centerline based on map_waypoints--
-
             // //Use the current car position to find the next waypoint. Fit a spline to car position and next 4 waypoints in global xy
             // int next_wp = NextWaypoint(car_x,car_y,car_yaw,map_waypoints_x,map_waypoints_y);
             // int prev_wp = next_wp - 1;
@@ -336,16 +325,84 @@ int main() {
             //   cout << "["<<map_waypoints_x[(next_wp+i) % map_waypoints_x.size()] <<", "<< map_waypoints_y[(next_wp+i) % map_waypoints_y.size()]<<"], ";
             //   // cout << map_waypoints_y[(next_wp+i) % map_waypoints_y.size()] <<", ";
             // }
-            cout<<endl;
+            //cout<<endl;
 
             //--generate waypoints in front of the car based on getXY
             int lane = 0;
             //*********------------BEHAVIOR-----******
-            if (car_s > 200.0){lane = 1.0;}
-            if (car_s > 350.0){lane = 2.0;}
-            if (car_s > 500.0){lane = 1.0;}
-            if (car_s > 650.0){lane = 0.0;}
 
+            //sample behavior
+            double set_vel = 49.0*MPH_TO_MS;
+            // if (car_s > 200.0){lane = 1.0; target_vel = 35.0*MPH_TO_MS;}
+            // if (car_s > 350.0){lane = 2.0; target_vel = 20.0*MPH_TO_MS;}
+            // if (car_s > 500.0){lane = 1.0; target_vel = 47.0*MPH_TO_MS;}
+            // if (car_s > 650.0){lane = 0.0; target_vel = 40.0*MPH_TO_MS;}
+
+            string state = "KEEPLANE";
+            double target_zone_forw = 80.0;
+            double target_zone_rev = -10.0;
+            //review telemetry;
+            double min_tar_dist = 999999;
+            double min_tar_vel = set_vel;
+            double min_tar_idx;
+
+            for (int i = 0; i < sensor_fusion.size(); i++){
+
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double tar_vel = sqrt(pow(vx,2)+pow(vy,2));
+              double tar_s = sensor_fusion[i][5];
+              double tar_d = sensor_fusion[i][6];
+
+
+              if (tar_d < (2+4*lane+2) && tar_d >(2+4*lane-2) ) //check if car in my lane - from project walkthrough
+              {
+                double ds = tar_s - car_s; //delta_s coord
+                cout << "in_lane: " << i << " v: "<< tar_vel/MPH_TO_MS << " ds: "<<ds <<  endl;
+
+                if (ds < min_tar_dist && ds > 0.0) // who is the closest car in front of me. //TODO Handle WRAP AROUND
+                {
+                  min_tar_dist = ds;
+                  min_tar_idx = i;
+                  min_tar_vel = tar_vel;
+                }
+              }
+            }
+            double follow_dist = 25.0;
+            if(min_tar_dist < follow_dist)
+            {
+              state = "FOLLOW";
+              set_vel = min_tar_vel;
+            }
+            cout << <<"min_tar_dist: "<<min_tar_dist << endl;
+
+
+            if (state = "FOLLOW")
+            {
+              
+            }
+
+
+
+
+
+
+
+            //------------Fit a Spline-------------
+            // the spline will be 5 points
+            int n_spl_pts = 5;
+            std::vector<double> spl_ptsx;
+            std::vector<double> spl_ptsy;
+
+            //ensure tangency to current path:
+            //add the second last endpoint from the previous path
+            spl_ptsx.push_back(pos_x2); //PT1
+            spl_ptsy.push_back(pos_y2);
+            //add the last endpoint from the previous path
+            spl_ptsx.push_back(pos_x);  // PT2
+            spl_ptsy.push_back(pos_y);
+
+            //add 3 more points further along the road using s,d coords
             vector<double> wp0 = getXY(car_s+45.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
             vector<double> wp1 = getXY(car_s+70.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
             vector<double> wp2 = getXY(car_s+95.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
@@ -356,26 +413,31 @@ int main() {
             spl_ptsx.push_back(wp2[0]);
             spl_ptsy.push_back(wp2[1]);
 
-            //Transform to car coordinates
+            //Transform the spline points to car coordinates
             std::vector<double> spl_ptsx_c(spl_ptsx.size());
             std::vector<double> spl_ptsy_c(spl_ptsy.size());
-            // double yaw_rad = deg2rad(angle);
+
             double yaw_rad = angle;
-            // double prev_x = pos_x;
+
+            //shift and rotate points
             for (int i=0; i<spl_ptsx.size();i++ ){
               spl_ptsx_c[i] = (spl_ptsx[i] - pos_x) * cos(0.0-yaw_rad) - (spl_ptsy[i] - pos_y) * sin(0.0-yaw_rad);
               spl_ptsy_c[i] = (spl_ptsx[i] - pos_x) * sin(0.0-yaw_rad) + (spl_ptsy[i] - pos_y) * cos(0.0-yaw_rad);
-              cout << "["<<spl_ptsx_c[i] <<", "<<spl_ptsy_c[i]<<"], ";
+              //cout << "["<<spl_ptsx_c[i] <<", "<<spl_ptsy_c[i]<<"], ";
               // cout << spl_ptsy_c[i] <<", ";
             }
+            //cout<<endl;
+            //shift the first spline point in X by a small amount to ensure compatibility with the spline library
             spl_ptsx_c[0] = spl_ptsx_c[0]-0.001;
-            cout<<endl;
 
 
+            //fit a spline
             tk::spline spl1;
             spl1.set_points(spl_ptsx_c,spl_ptsy_c);
 
-            double target_x = 30.0; //WHY
+
+            //This is used to find point spacing on the spline to ensure target velocity is maintained.
+            double target_x = 30.0; //Arbitrary distance, used to find spline y
             double target_y = spl1(target_x);
             double target_dist = sqrt(pow(target_x,2)+pow(target_y,2));
             double x_add_on = 0.0;
@@ -383,70 +445,21 @@ int main() {
             // cout << "target_dist: "<<target_dist<<endl;
 
 
-            // int n_eval_pts = 100;
-            // std::vector<double> local_x(n_eval_pts);
-            // std::vector<double> local_y(n_eval_pts);
-            // std::vector<double> local_s(n_eval_pts);
-            // std::vector<double> local_xy(2);
+
+            //Adjust the velocity based on the max_acceleration
             //
-            // for (int i=0;i<n_eval_pts;i++){
-            //   double s = car_s+i*0.4;
-            //   local_s[i] = s;
-            //   cout << s <<endl;
-            //   local_xy = getXY(s, 0, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            //   local_x[i] = local_xy[0];
-            //   local_y[i] = local_xy[1]; //spl1(local_xy[0]);
-            // }
-
-
-            //This would be setting the velocity for points in the future!
-            // manage accelerations
-            double target_velocity_mph = 47.0; //mph
-            double target_velocity = target_velocity_mph * 0.44704; //m/s
             double dt = 0.02;// s
             double a_max = 10.0; //m/s^2
             double j_max = 100.0;
 
-            double car_speed_ms = car_speed * 0.44704; // m/s
-
-            //calculate acceleration based on max jerk
-            if (target_velocity_mph > car_speed){
-              //disc_inc = car_speed_ms* dt + 0.5*a_max*dt*dt;
-              //accelerate
-              if (acc < a_max){acc = acc + j_max*dt;}
-              vel_out += 0.2;
-
+            if (last_vel_out < set_vel){
+            vel_out = last_vel_out + a_max*dt;
+            last_vel_out = vel_out;
             }
-            else if (target_velocity_mph < car_speed){
-              //disc_inc = car_speed_ms* dt - 0.5*a_max*dt*dt;
-              //deccelerate
-              if (acc > -a_max) {acc = acc - j_max*dt;}
-              vel_out -= 0.2;
+            else if (last_vel_out > set_vel){
+            vel_out = last_vel_out - a_max*dt;
+            last_vel_out = vel_out;
             }
-            else {
-              //zero accelleration
-              if (acc>0.0) { acc = acc - j_max*dt;}
-              else if (acc < 0.0) {acc = acc + j_max*dt;}
-              else {acc = acc;} //acc is zero
-            }
-
-            // vel_out = vel_out + acc*dt; // screw managing sign of jerk + 1.0/6.0*j_max*dt*dt*dt;
-            vel_out = 45.0*0.447;
-            // // Just use acceleration
-            // if (target_velocity_mph > car_speed){
-            //   //disc_inc = car_speed_ms* dt + 0.5*a_max*dt*dt;
-            //   disc_inc = disc_inc + 0.5*a_max*dt*dt;
-            // }
-            // else if (target_velocity_mph < car_speed){
-            //   //disc_inc = car_speed_ms* dt - 0.5*a_max*dt*dt;
-            //   disc_inc = disc_inc - 0.5*a_max*dt*dt;
-            // }
-            // else {
-            //   disc_inc = disc_inc;
-            // }
-            // cout << car_speed_ms <<endl;
-
-
 
 
             //cout << path_size << '\n';
@@ -455,20 +468,18 @@ int main() {
             {
 
               // cout << "target_dist: "<<target_dist<<endl;
-              double N = target_dist/(0.02*vel_out);
-              double x_point = x_add_on+(target_x/N);
+              double N = target_dist/(0.02*vel_out); //number of points required to acheive spacing for vel_out over a distance of target_dist
+              double x_point = x_add_on+(target_x/N); // the next point along the spline in x
               double y_point = spl1(x_point);
               x_add_on = x_point;
-              cout << "N = " << N << endl;
-              cout << "x_add_on = " << x_add_on << endl;
-              cout << "x_point = " << x_point << endl;
-              cout << "y_point = " << y_point << endl;
+
               double x_ref = x_point;
               double y_ref = y_point;
+
               //rotate then shift back to global XY
-              x_point = (x_ref*cos(yaw_rad)-y_ref*sin(yaw_rad));
+              x_point = (x_ref*cos(yaw_rad)-y_ref*sin(yaw_rad));// rotate points into the global frame using the car yaw
               y_point = (x_ref*sin(yaw_rad)+y_ref*cos(yaw_rad));
-              x_point += pos_x;
+              x_point += pos_x; // shift the point into XY coordinates using the last point on the prev_path
               y_point += pos_y;
 
 
