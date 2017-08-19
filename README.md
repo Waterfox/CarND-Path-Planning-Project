@@ -59,7 +59,7 @@ A basic state machine type solution was implemented to select the vehicle's spee
 4. If we are in the FOLLOW state, check the lanes left and right.
   * Don't check lanes outside of boundaries.
   * review telemetry for the lanes beside us and determine the maximum available S distance between our car and the next car in the neighbor lane.
-  * Only count this measurement if a lane change would be safe and there are no impending cars up -3m behind us in the neighbor lane. LINE 418, 447.
+  * Only count this measurement if a lane change would be safe and there are no impending cars up -6m behind us in the neighbor lane. LINE 418, 447.
 5. Perform a lane change into the lane with the most available driving space if there is enough room. LINE 460.
   * Don't perform a lane change if we are too close to the car in front of us.
   * Ensure there is 22m of free space in front in the target lane.
@@ -74,6 +74,6 @@ To resolve this the car could calculate the total free driving area in all oppos
 
 The car could use a form of prediction to calculate the future positions of itself and surrounding vehicles to ensure that there are not collisions for a potential trajectory.
 
-The car is probably the most sensitive to trying to make a lane change while stuck behind a slow moving car. It only considers cars up to 3m behind it in the target lane. This makes it vunerable to a fast moving car from behind while changing lanes. The a prediction step could help here, or a larger rear monitoring distance, or checking the aft vehicle's speed. This doesn't occur often as we are often driving faster than other vehicles.
+The car is probably the most sensitive to trying to make a lane change while stuck behind a slow moving car. It only considers cars up to 6m behind it in the target lane. This makes it vunerable to a fast moving car from behind while changing lanes. The a prediction step could help here, or a larger rear monitoring distance, or checking the aft vehicle's speed. This doesn't occur often as we are often driving faster than other vehicles.
 
 I have a feeling that planners and behavior engines in commercial grade robotics and self driving cars are not built on IF statements as it was done here. Perhaps more-so based on cost functions / cost maps.

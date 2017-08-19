@@ -390,7 +390,7 @@ int main() {
             {
               // Try to change lanes
 
-              double look_backwards = -3.0; // we are considering cars up to 3 m behind us in the opposite lane when changing lanes
+              double look_backwards = -6.0; // we are considering cars up to 3 m behind us in the opposite lane when changing lanes
               double min_ds_left = look_backwards-1.0; // this is chosen to be one unit less than the minumum value of ds (delta_s) can be set to
               double min_ds_right = look_backwards-1.0;
               double min_left_vel = 49.0*MPH_TO_MS; // plan the lane change at the velocity of the vehicle in front of you, so you don't hit it.
