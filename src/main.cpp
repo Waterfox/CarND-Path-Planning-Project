@@ -553,7 +553,7 @@ int main() {
             //
             double dt = 0.02;// s
             double a_max = 10.0; //m/s^2
-            double j_max = 100.0;
+            double j_max = 50.0;
 
             if (last_vel_out < set_vel){
             vel_out = last_vel_out + a_max*dt;
