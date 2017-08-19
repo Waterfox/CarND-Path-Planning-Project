@@ -341,8 +341,6 @@ int main() {
             // if (car_s > 650.0){lane = 0.0; target_vel = 40.0*MPH_TO_MS;}
 
             string state = "KEEPLANE";
-            double target_zone_forw = 80.0;
-            double target_zone_rev = -10.0;
             //review telemetry;
             double min_tar_dist = 999999;
             double min_tar_vel = set_vel;
@@ -372,6 +370,7 @@ int main() {
             }
             double follow_dist = 25.0; // match the vehicle's speed in front of you, consider a lane change
             double safety_dist = 18.0; // the vehicle will slow down by 1m/s rel to the car in front of it in this distance. Useful for getting unstuck
+
             if(min_tar_dist < follow_dist)
             {
               state = "FOLLOW";
@@ -396,7 +395,7 @@ int main() {
               double min_ds_right = look_backwards-1.0;
               double min_left_vel = 49.0*MPH_TO_MS; // plan the lane change at the velocity of the vehicle in front of you, so you don't hit it.
               double min_right_vel = 49.0*MPH_TO_MS;
-              //-------check the left lane
+              //-------check the left lane-------------
               if (lane != 0)
               {
                 int target_lane = lane - 1;
@@ -425,7 +424,7 @@ int main() {
                 }
               }
 
-              //--------check the right lane
+              //--------check the right lane---------
               if (lane != 2 )
               {
                 int target_lane = lane + 1;
@@ -453,22 +452,31 @@ int main() {
                   }
                 }
               }
+
+
+              //------Take an action based on the results of right and left lane check
+
+              //stay in our current lane
               if (min_tar_dist < 10) // don't change lanes if we are too close to a car, slow down first
               {
                 state = "FOLLOW";
               }
+              // CHANGE RIGHT
               else if (min_ds_right > min_ds_left && min_ds_right > 22.0) // change lanes right if there is more room on the right, make sure there is 22m
               {
                 lane = lane + 1;
                 state = "KEEPLANE";
                 set_vel = min(min_right_vel,min_tar_vel); //our change lane speed is the minimum of the car in the lane beside us and the one we are following in our current lane
               }
+              // CHANGE LEFT
               else if (min_ds_left > min_ds_right && min_ds_left > 22.0) // change lanes left if there is more room on the left
               {
                 lane = lane -1;
                 state = "KEEPLANE";
                 set_vel = min(min_left_vel,min_tar_vel); //our change lane speed is the minimum of the car in the lane beside us and the one we are following in our current lane
               }
+
+              // KEEP LANE
               else // otherwise keep following //TODO confirm how much we need this
               {
                 state = "FOLLOW";
@@ -479,7 +487,7 @@ int main() {
             }
             cout << "State: " << state << " lane: "<< lane <<endl;
 
-            //TODO: Stop double lane changes, they JERK
+            //TODO: Stop double lane changes, they JERK --
 
 
 
