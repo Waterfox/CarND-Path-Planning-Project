@@ -184,6 +184,8 @@ int main() {
   double vel_out = 0.0;
   double last_vel_out = 0.0;
   double acc = 0;
+  int lane = 0;
+  double set_vel = 49.0*MPH_TO_MS;
 
   ifstream in_map_(map_file_.c_str(), ifstream::in);
 
@@ -207,7 +209,7 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &vel_out, &last_vel_out, &acc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &vel_out, &last_vel_out, &set_vel, &lane, &acc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -328,11 +330,11 @@ int main() {
             //cout<<endl;
 
             //--generate waypoints in front of the car based on getXY
-            int lane = 0;
+
             //*********------------BEHAVIOR-----******
 
             //sample behavior
-            double set_vel = 49.0*MPH_TO_MS;
+
             // if (car_s > 200.0){lane = 1.0; target_vel = 35.0*MPH_TO_MS;}
             // if (car_s > 350.0){lane = 2.0; target_vel = 20.0*MPH_TO_MS;}
             // if (car_s > 500.0){lane = 1.0; target_vel = 47.0*MPH_TO_MS;}
@@ -358,7 +360,7 @@ int main() {
               if (tar_d < (2+4*lane+2) && tar_d >(2+4*lane-2) ) //check if car in my lane - from project walkthrough
               {
                 double ds = tar_s - car_s; //delta_s coord
-                cout << "in_lane: " << i << " v: "<< tar_vel/MPH_TO_MS << " ds: "<<ds <<  endl;
+                //cout << "in_lane: " << i << " v: "<< tar_vel << " ds: "<<ds <<  endl;
 
                 if (ds < min_tar_dist && ds > 0.0) // who is the closest car in front of me. //TODO Handle WRAP AROUND
                 {
@@ -368,23 +370,116 @@ int main() {
                 }
               }
             }
-            double follow_dist = 25.0;
+            double follow_dist = 25.0; // match the vehicle's speed in front of you, consider a lane change
+            double safety_dist = 18.0; // the vehicle will slow down by 1m/s rel to the car in front of it in this distance. Useful for getting unstuck
             if(min_tar_dist < follow_dist)
             {
               state = "FOLLOW";
               set_vel = min_tar_vel;
+              if (min_tar_dist < safety_dist) // if we are getting too close, back off
+              {set_vel = min_tar_vel - 1.0;}
             }
-            cout << <<"min_tar_dist: "<<min_tar_dist << endl;
-
-
-            if (state = "FOLLOW")
+            else
             {
-              
+              state = "KEEPLANE";
+              set_vel = 49.0*MPH_TO_MS;
             }
+            cout <<"min_tar_dist: "<<min_tar_dist << endl;
+
+            // See if we should change lanes
+            if (state == "FOLLOW")
+            {
+              // Try to change lanes
+              //check left
+              double look_backwards = -3.0;
+              double min_ds_left = look_backwards-1.0; // this is chosen to be one unit less than the minumum value of ds (delta_s) can be set to
+              double min_ds_right = look_backwards-1.0;
+              double min_left_vel = 49.0*MPH_TO_MS; // plan the lane change at the velocity of the vehicle in front of you, so you don't hit it.
+              double min_right_vel = 49.0*MPH_TO_MS;
+
+              if (lane != 0)
+              {
+                int target_lane = lane - 1;
+                //review telemetry for cars in this lane
+                min_ds_left = 99998; // bias right if both lanes are clear
+                for (int i = 0; i < sensor_fusion.size(); i++){
+
+                  double vx = sensor_fusion[i][3];
+                  double vy = sensor_fusion[i][4];
+                  double tar_vel = sqrt(pow(vx,2)+pow(vy,2));
+                  double tar_s = sensor_fusion[i][5];
+                  double tar_d = sensor_fusion[i][6];
 
 
+                  if (tar_d < (2+4*target_lane+2) && tar_d >(2+4*target_lane-2) ) //check if car in my lane - from project walkthrough
+                  {
+                    double ds = tar_s - car_s; //delta_s coord
+                    // cout << "in_lane: " << i << " v: "<< tar_vel << " ds: "<<ds <<  endl;
+
+                    if (ds < min_ds_left && ds > look_backwards) // who is the closest car in front of me or the car up to "look_backwards" m behind me
+                    {
+                      min_ds_left = ds;
+                      min_left_vel = tar_vel;
+                    }
+                  }
+                }
+              }
+
+              //check right
+              if (lane != 2 )
+              {
+                int target_lane = lane + 1;
+                //review telemetry for cars in this lane
+                min_ds_right = 99999;
+                for (int i = 0; i < sensor_fusion.size(); i++){
+
+                  double vx = sensor_fusion[i][3];
+                  double vy = sensor_fusion[i][4];
+                  double tar_vel = sqrt(pow(vx,2)+pow(vy,2));
+                  double tar_s = sensor_fusion[i][5];
+                  double tar_d = sensor_fusion[i][6];
 
 
+                  if (tar_d < (2+4*target_lane+2) && tar_d >(2+4*target_lane-2) ) //check if car in my lane - from project walkthrough
+                  {
+                    double ds = tar_s - car_s; //delta_s coord
+                    // cout << "in_lane: " << i << " v: "<< tar_vel << " ds: "<<ds <<  endl;
+
+                    if (ds < min_ds_right && ds > look_backwards) // who is the closest car in front of me. //TODO Handle WRAP AROUND
+                    {
+                      min_ds_right = ds;
+                      min_right_vel = tar_vel;
+                    }
+                  }
+                }
+              }
+              if (min_tar_dist < 10) // don't change lanes if we are too close to a car, slow down first
+              {
+                state = "FOLLOW";
+              }
+              else if (min_ds_right > min_ds_left && min_ds_right > 15.0) // change lanes right if there is more room on the right, make sure there is 15m
+              {
+                lane = lane + 1;
+                state = "KEEPLANE";
+                set_vel = min_right_vel;
+              }
+              else if (min_ds_left > min_ds_right && min_ds_left > 15.0) // change lanes left if there is more room on the left
+              {
+                lane = lane -1;
+                state = "KEEPLANE";
+                set_vel = min_left_vel;
+              }
+              else // otherwise keep following //TODO confirm how much we need this
+              {
+                state = "FOLLOW";
+                // set_vel = 49.0*MPH_TO_MS
+              }
+
+              cout << "min_ds_left:" << min_ds_left << " min_ds_right: " << min_ds_right << endl;
+            }
+            cout << "State: " << state << " lane: "<< lane <<endl;
+
+            //TODO: Stop double lane changes, they JERK
 
 
 
@@ -403,9 +498,9 @@ int main() {
             spl_ptsy.push_back(pos_y);
 
             //add 3 more points further along the road using s,d coords
-            vector<double> wp0 = getXY(car_s+45.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
-            vector<double> wp1 = getXY(car_s+70.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
-            vector<double> wp2 = getXY(car_s+95.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+            vector<double> wp0 = getXY(car_s+50.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+            vector<double> wp1 = getXY(car_s+75.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+            vector<double> wp2 = getXY(car_s+100.0,(2.0+4.0*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
             spl_ptsx.push_back(wp0[0]);
             spl_ptsy.push_back(wp0[1]);
             spl_ptsx.push_back(wp1[0]);
