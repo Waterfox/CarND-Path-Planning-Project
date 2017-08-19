@@ -390,13 +390,13 @@ int main() {
             if (state == "FOLLOW")
             {
               // Try to change lanes
-              //check left
-              double look_backwards = -3.0;
+
+              double look_backwards = -3.0; // we are considering cars up to 3 m behind us in the opposite lane when changing lanes
               double min_ds_left = look_backwards-1.0; // this is chosen to be one unit less than the minumum value of ds (delta_s) can be set to
               double min_ds_right = look_backwards-1.0;
               double min_left_vel = 49.0*MPH_TO_MS; // plan the lane change at the velocity of the vehicle in front of you, so you don't hit it.
               double min_right_vel = 49.0*MPH_TO_MS;
-
+              //-------check the left lane
               if (lane != 0)
               {
                 int target_lane = lane - 1;
@@ -413,10 +413,10 @@ int main() {
 
                   if (tar_d < (2+4*target_lane+2) && tar_d >(2+4*target_lane-2) ) //check if car in my lane - from project walkthrough
                   {
-                    double ds = tar_s - car_s; //delta_s coord
+                    double ds = tar_s - car_s; //delta_s coord - difference of our s coord from other car's s
                     // cout << "in_lane: " << i << " v: "<< tar_vel << " ds: "<<ds <<  endl;
 
-                    if (ds < min_ds_left && ds > look_backwards) // who is the closest car in front of me or the car up to "look_backwards" m behind me
+                    if (ds < min_ds_left && ds > look_backwards) // who is the closest car in front of me or the car up to 3 m behind me
                     {
                       min_ds_left = ds;
                       min_left_vel = tar_vel;
@@ -425,7 +425,7 @@ int main() {
                 }
               }
 
-              //check right
+              //--------check the right lane
               if (lane != 2 )
               {
                 int target_lane = lane + 1;
@@ -457,17 +457,17 @@ int main() {
               {
                 state = "FOLLOW";
               }
-              else if (min_ds_right > min_ds_left && min_ds_right > 15.0) // change lanes right if there is more room on the right, make sure there is 15m
+              else if (min_ds_right > min_ds_left && min_ds_right > 22.0) // change lanes right if there is more room on the right, make sure there is 22m
               {
                 lane = lane + 1;
                 state = "KEEPLANE";
-                set_vel = min_right_vel;
+                set_vel = min(min_right_vel,min_tar_vel); //our change lane speed is the minimum of the car in the lane beside us and the one we are following in our current lane
               }
-              else if (min_ds_left > min_ds_right && min_ds_left > 15.0) // change lanes left if there is more room on the left
+              else if (min_ds_left > min_ds_right && min_ds_left > 22.0) // change lanes left if there is more room on the left
               {
                 lane = lane -1;
                 state = "KEEPLANE";
-                set_vel = min_left_vel;
+                set_vel = min(min_left_vel,min_tar_vel); //our change lane speed is the minimum of the car in the lane beside us and the one we are following in our current lane
               }
               else // otherwise keep following //TODO confirm how much we need this
               {
@@ -483,7 +483,7 @@ int main() {
 
 
 
-            //------------Fit a Spline-------------
+            //------------Fit a Spline-------------------------------
             // the spline will be 5 points
             int n_spl_pts = 5;
             std::vector<double> spl_ptsx;
